@@ -29,6 +29,8 @@ jobs:
 
       - name: Create cart-app .env for Continuous Deploy
         run: |
+          echo "Actor is ${{ secrets.ACTOR }}"
+        
           cd cart-app
           echo "${{ secrets.CART_ENV_PRODUCTION }}" > .env
 
