@@ -12,7 +12,7 @@ on:
         default: 'Manual Trigger'
 
 env:
-  DOCKER_IMAGE: ghcr.io/${{ secrets.ACTOR }}/mfe-deploy-test:latest
+  DOCKER_IMAGE: ghcr.io/imcoder0000/mfe-deploy-test:latest
 
 jobs:
   build:
@@ -84,7 +84,7 @@ jobs:
           cd /home/ec2-user/micro-frontend
           docker-compose down
   
-          echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.ACTOR }} --password-stdin
+          echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u imcoder0000 --password-stdin
           docker pull ${{ env.DOCKER_IMAGE }}
 
           docker image prune -f
