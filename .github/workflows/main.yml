@@ -12,83 +12,60 @@ on:
         default: 'Manual Trigger'
 
 env:
+  IMAGE_NAME: ghcr.io/imcoder0000/mfe-deploy-test
+  IMAGE_TAG: latest
   DOCKER_IMAGE: ghcr.io/imcoder0000/mfe-deploy-test:latest
 
 jobs:
   build:
-    name: build-app
+    name: Build & Push Docker Image
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Create authentication-app .env for Continuous Deploy
+      - name: Create .env files for all apps
         run: |
-          cd authentication-app
-          echo "${{ secrets.AUTHENTICATION_ENV_PRODUCTION }}" > .env
+          declare -A envs=(
+            [authentication-app]="${{ secrets.AUTHENTICATION_ENV_PRODUCTION }}"
+            [cart-app]="${{ secrets.CART_ENV_PRODUCTION }}"
+            [dice-game-app]="${{ secrets.DICE_GAME_ENV_PRODUCTION }}"
+            [game-chip-app]="${{ secrets.GAME_CHIP_ENV_PRODUCTION }}"
+            [html-container]="${{ secrets.HTML_CONTAINER_ENV_PRODUCTION }}"
+            [laptop-app]="${{ secrets.LAPTOP_ENV_PRODUCTION }}"
+            [navigation-bar-app]="${{ secrets.NAVIGATION_BAR_ENV_PRODUCTION }}"
+            [vue-board-app]="${{ secrets.VUE_BOARD_ENV_PRODUCTION }}"
+          )
+          for app in "${!envs[@]}"; do
+            echo "${envs[$app]}" > "$app/.env"
+          done
 
-      - name: Create cart-app .env for Continuous Deploy
-        run: |
-          echo "Actor is ${{ secrets.ACTOR }}"
-        
-          cd cart-app
-          echo "${{ secrets.CART_ENV_PRODUCTION }}" > .env
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u imcoder0000 --password-stdin
 
-      - name: Create dice-game-app .env for Continuous Deploy
+      - name: Build & Push Multi-Arch Image
         run: |
-          cd dice-game-app
-          echo "${{ secrets.DICE_GAME_ENV_PRODUCTION }}" > .env
+          docker buildx create --use --name builder || docker buildx use builder
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t ${{ env.DOCKER_IMAGE }} \
+            --push .
 
-      - name: Create game-chip-app .env for Continuous Deploy
-        run: |
-          cd game-chip-app
-          echo "${{ secrets.GAME_CHIP_ENV_PRODUCTION }}" > .env
-
-      - name: Create html-container .env for Continuous Deploy
-        run: |
-          cd html-container
-          echo "${{ secrets.HTML_CONTAINER_ENV_PRODUCTION }}" > .env
-
-      - name: Create laptop-app .env for Continuous Deploy
-        run: |
-          cd laptop-app
-          echo "${{ secrets.LAPTOP_ENV_PRODUCTION }}" > .env
-
-      - name: Create navigation-bar-app .env for Continuous Deploy
-        run: |
-          cd navigation-bar-app
-          echo "${{ secrets.NAVIGATION_BAR_ENV_PRODUCTION }}" > .env
-
-      - name: Create vue-board-app .env for Continuous Deploy
-        run: |
-          cd vue-board-app
-          echo "${{ secrets.VUE_BOARD_ENV_PRODUCTION }}" > .env
-
-      - name: Build and Push Docker Image
-        run: |
-          echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ secrets.ACTOR }} --password-stdin
-          docker buildx create --name builder --use
-          docker buildx build --platform linux/amd64,linux/arm64 \
-            -t ${{ env.DOCKER_IMAGE }} --push .
-          docker logout
+      - name: Log out from GHCR
+        run: docker logout
 
   deploy:
     name: Deploy to Production
     needs: build
     runs-on: [ self-hosted, deploy-micro-frontend ]
     steps:
-      - name: Pull and Deploy Container
+      - name: Deploy Container
         run: |
           echo "Starting Micro Frontend Production Deployment"
-  
           cd /home/ec2-user/micro-frontend
           docker-compose down
-  
           echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u imcoder0000 --password-stdin
           docker pull ${{ env.DOCKER_IMAGE }}
-
           docker image prune -f
           docker logout
-  
           docker-compose up -d --remove-orphans
           echo "Deployment complete."
